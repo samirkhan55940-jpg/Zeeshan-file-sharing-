@@ -40,8 +40,8 @@ jobs:
                   applicationId 'com.zeeshan.filesharing'
                   minSdk 24
                   targetSdk 34
-                  versionCode 8
-                  versionName '8.0-UltimateRadar'
+                  versionCode 10
+                  versionName '10.0-TopGearSettings'
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -57,8 +57,10 @@ jobs:
               <string name=\"app_name\">Zeeshan Share</string>
           </resources>" > app/src/main/res/values/strings.xml
 
+          # 🚨 SABSE POWERFUL PERMISSIONS YAHAN ADD KI GAYI HAIN
           echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-          <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">
+          <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"
+              xmlns:tools=\"http://schemas.android.com/tools\">
               <uses-permission android:name=\"android.permission.BLUETOOTH\" />
               <uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\" />
               <uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\" />
@@ -71,7 +73,8 @@ jobs:
               <uses-permission android:name=\"android.permission.NEARBY_WIFI_DEVICES\" />
               <uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" />
               <uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />
-              <uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\" />
+              <uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\" tools:ignore=\"ScopedStorage\" />
+              <uses-permission android:name=\"android.permission.WRITE_SETTINGS\" tools:ignore=\"ProtectedPermissions\" />
 
               <application android:label=\"@string/app_name\" android:theme=\"@style/Theme.AppCompat.Light.NoActionBar\" android:requestLegacyExternalStorage=\"true\">
                   <activity android:name=\".MainActivity\" android:exported=\"true\">
@@ -99,33 +102,21 @@ jobs:
           import android.Manifest;
           import android.os.Build;
           import android.net.Uri;
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.InputStream;
+          import android.provider.Settings;
           import android.os.Environment;
+          import android.widget.Toast;
           
           import com.google.android.gms.nearby.Nearby;
           import com.google.android.gms.nearby.connection.*;
 
           public class MainActivity extends AppCompatActivity {
               
-              // UI Panels
-              private LinearLayout setupCardPanel;
-              private LinearLayout radarPanel;
-              private LinearLayout dashboardPanel;
-              private LinearLayout monitorPanel;
-              
+              private LinearLayout permissionScreen;
+              private LinearLayout radarScreen;
               private TextView statusText;
-              private TextView monitorSpeedText;
-              private TextView monitorProgressText;
-              private LinearLayout radarDeviceList;
-              
               private ConnectionsClient connectionsClient;
               private static final String SERVICE_ID = "com.zeeshan.filesharing.ULTIMATE";
-              private String connectedEndpointId = null;
-              private static final int REQUEST_PICK_FILE = 2;
-              
-              private long transferStartTime = 0;
+              private static final int PERMISSION_REQUEST_CODE = 100;
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -135,151 +126,132 @@ jobs:
                   LinearLayout rootLayout = new LinearLayout(this);
                   rootLayout.setOrientation(LinearLayout.VERTICAL);
                   rootLayout.setBackgroundColor(Color.parseColor("#121212"));
-                  rootLayout.setPadding(30, 60, 30, 30);
+                  rootLayout.setGravity(Gravity.CENTER);
 
+                  // SCREEN 1: LAL BUTTON
+                  permissionScreen = new LinearLayout(this);
+                  permissionScreen.setOrientation(LinearLayout.VERTICAL);
+                  permissionScreen.setGravity(Gravity.CENTER);
+                  
                   TextView header = new TextView(this);
                   header.setText("ZEESHAN SHARE");
                   header.setTextColor(Color.WHITE);
-                  header.setTextSize(32);
-                  header.setGravity(Gravity.CENTER);
+                  header.setTextSize(36);
+                  header.setPadding(0, 0, 0, 80);
                   header.setTypeface(null, android.graphics.Typeface.BOLD);
-                  rootLayout.addView(header);
+                  permissionScreen.addView(header);
+
+                  Button redButton = new Button(this);
+                  redButton.setText("START");
+                  redButton.setTextColor(Color.WHITE);
+                  redButton.setTextSize(28);
+                  redButton.setTypeface(null, android.graphics.Typeface.BOLD);
+                  
+                  GradientDrawable redShape = new GradientDrawable();
+                  redShape.setShape(GradientDrawable.OVAL);
+                  redShape.setColor(Color.parseColor("#D50000")); 
+                  redButton.setBackground(redShape);
+                  
+                  LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(600, 600);
+                  redButton.setLayoutParams(btnParams);
+                  
+                  redButton.setOnClickListener(v -> requestVIPSettingsAndPermissions());
+                  permissionScreen.addView(redButton);
+                  
+                  rootLayout.addView(permissionScreen);
+
+                  // SCREEN 2: RADAR
+                  radarScreen = new LinearLayout(this);
+                  radarScreen.setOrientation(LinearLayout.VERTICAL);
+                  radarScreen.setGravity(Gravity.CENTER);
+                  radarScreen.setVisibility(View.GONE); 
+                  
+                  TextView radarTitle = new TextView(this);
+                  radarTitle.setText("📡 RADAR ACTIVE");
+                  radarTitle.setTextColor(Color.parseColor("#00E676")); 
+                  radarTitle.setTextSize(32);
+                  radarTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                  radarTitle.setPadding(0, 0, 0, 40);
+                  radarScreen.addView(radarTitle);
 
                   statusText = new TextView(this);
-                  statusText.setText("Complete Setup to Start");
-                  statusText.setTextColor(Color.parseColor("#00E676"));
-                  statusText.setGravity(Gravity.CENTER);
-                  statusText.setPadding(0, 20, 0, 40);
-                  rootLayout.addView(statusText);
+                  statusText.setText("Scanning for nearby friends...");
+                  statusText.setTextColor(Color.WHITE);
+                  statusText.setTextSize(18);
+                  radarScreen.addView(statusText);
 
-                  // 1. SETUP CARD (App Khulte Hi)
-                  setupCardPanel = new LinearLayout(this);
-                  setupCardPanel.setOrientation(LinearLayout.VERTICAL);
-                  setupCardPanel.setBackgroundColor(Color.parseColor("#1E1E1E"));
-                  setupCardPanel.setPadding(40, 40, 40, 40);
-                  
-                  TextView setupTitle = new TextView(this);
-                  setupTitle.setText("ONE-TAP SETUP");
-                  setupTitle.setTextColor(Color.WHITE);
-                  setupTitle.setTextSize(20);
-                  setupCardPanel.addView(setupTitle);
-                  
-                  Button grantPermBtn = new Button(this);
-                  grantPermBtn.setText("Turn ON Bluetooth, Location & Storage");
-                  grantPermBtn.setBackgroundColor(Color.parseColor("#D50000"));
-                  grantPermBtn.setTextColor(Color.WHITE);
-                  grantPermBtn.setOnClickListener(v -> requestPermissions());
-                  setupCardPanel.addView(grantPermBtn);
-                  
-                  Button startRadarBtn = new Button(this);
-                  startRadarBtn.setText("Launch Radar Mode");
-                  startRadarBtn.setBackgroundColor(Color.parseColor("#00C853"));
-                  startRadarBtn.setTextColor(Color.WHITE);
-                  startRadarBtn.setOnClickListener(v -> startDualRadar());
-                  setupCardPanel.addView(startRadarBtn);
-                  
-                  rootLayout.addView(setupCardPanel);
-
-                  // 2. RADAR PANEL (Dual Discovery)
-                  radarPanel = new LinearLayout(this);
-                  radarPanel.setOrientation(LinearLayout.VERTICAL);
-                  radarPanel.setVisibility(View.GONE);
-                  
-                  TextView radarIcon = new TextView(this);
-                  radarIcon.setText("📡 RADAR IS ACTIVE");
-                  radarIcon.setTextColor(Color.parseColor("#00E676"));
-                  radarIcon.setTextSize(24);
-                  radarIcon.setGravity(Gravity.CENTER);
-                  radarPanel.addView(radarIcon);
-                  
-                  radarDeviceList = new LinearLayout(this);
-                  radarDeviceList.setOrientation(LinearLayout.VERTICAL);
-                  radarPanel.addView(radarDeviceList);
-                  
-                  rootLayout.addView(radarPanel);
-
-                  // 3. XENDER STYLE DASHBOARD
-                  dashboardPanel = new LinearLayout(this);
-                  dashboardPanel.setOrientation(LinearLayout.VERTICAL);
-                  dashboardPanel.setVisibility(View.GONE);
-                  
-                  dashboardPanel.addView(createCategoryButton("🎬 VIDEOS", "video/*", "#FF3D00"));
-                  dashboardPanel.addView(createCategoryButton("🖼️ PHOTOS", "image/*", "#FFC107"));
-                  dashboardPanel.addView(createCategoryButton("📁 FILES", "*/*", "#607D8B"));
-                  rootLayout.addView(dashboardPanel);
-
-                  // 4. LIVE TRANSFER MONITOR
-                  monitorPanel = new LinearLayout(this);
-                  monitorPanel.setOrientation(LinearLayout.VERTICAL);
-                  monitorPanel.setVisibility(View.GONE);
-                  monitorPanel.setPadding(20, 40, 20, 20);
-                  
-                  TextView monitorTitle = new TextView(this);
-                  monitorTitle.setText("LIVE TRANSFER");
-                  monitorTitle.setTextColor(Color.WHITE);
-                  monitorTitle.setTextSize(22);
-                  monitorTitle.setGravity(Gravity.CENTER);
-                  monitorPanel.addView(monitorTitle);
-                  
-                  monitorSpeedText = new TextView(this);
-                  monitorSpeedText.setTextColor(Color.parseColor("#2979FF"));
-                  monitorSpeedText.setTextSize(18);
-                  monitorPanel.addView(monitorSpeedText);
-                  
-                  monitorProgressText = new TextView(this);
-                  monitorProgressText.setTextColor(Color.WHITE);
-                  monitorProgressText.setTextSize(18);
-                  monitorPanel.addView(monitorProgressText);
-                  
-                  rootLayout.addView(monitorPanel);
+                  rootLayout.addView(radarScreen);
 
                   setContentView(rootLayout);
               }
 
-              private Button createCategoryButton(String title, String mime, String color) {
-                  Button btn = new Button(this);
-                  btn.setText(title);
-                  btn.setTextColor(Color.WHITE);
-                  btn.setBackgroundColor(Color.parseColor(color));
-                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 150);
-                  params.setMargins(0, 20, 0, 20);
-                  btn.setLayoutParams(params);
-                  btn.setOnClickListener(v -> {
-                      Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                      intent.setType(mime);
-                      startActivityForResult(intent, REQUEST_PICK_FILE);
-                  });
-                  return btn;
-              }
+              // 🚨 VIP SETTINGS AUR PERMISSIONS MANGNE KA ASLI LOGIC
+              private void requestVIPSettingsAndPermissions() {
+                  boolean allVIPSet = true;
 
-              private void requestPermissions() {
+                  // 1. All Files Access (Badi Files ke liye Android 11+)
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                      if (!Environment.isExternalStorageManager()) {
+                          allVIPSet = false;
+                          try {
+                              Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                              intent.setData(Uri.parse("package:" + getPackageName()));
+                              startActivity(intent);
+                              Toast.makeText(this, "Please Allow 'All Files Access' for Large Files", Toast.LENGTH_LONG).show();
+                          } catch (Exception e) {}
+                      }
+                  }
+
+                  // 2. Modify System Settings (Hardware control ke liye)
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      if (!Settings.System.canWrite(this)) {
+                          allVIPSet = false;
+                          Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                          intent.setData(Uri.parse("package:" + getPackageName()));
+                          startActivity(intent);
+                          Toast.makeText(this, "Please Allow 'Modify System Settings' for Radar", Toast.LENGTH_LONG).show();
+                      }
+                  }
+
+                  // 3. Normal Permissions (Bluetooth, Location)
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                       requestPermissions(new String[]{
                           Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT,
                           Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.NEARBY_WIFI_DEVICES,
                           Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-                      }, 100);
+                      }, PERMISSION_REQUEST_CODE);
                   } else {
                       requestPermissions(new String[]{
                           Manifest.permission.BLUETOOTH, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-                      }, 100);
+                      }, PERMISSION_REQUEST_CODE);
                   }
-                  statusText.setText("Permissions Granted ✅");
+                  
+                  // Agar sab pehle se set hai toh direct Radar khol do
+                  if(allVIPSet) {
+                      activateRadarScreen();
+                  }
               }
 
-              // ================= DUAL RADAR SYSTEM =================
-              private void startDualRadar() {
-                  setupCardPanel.setVisibility(View.GONE);
-                  radarPanel.setVisibility(View.VISIBLE);
-                  statusText.setText("Looking for nearby friends...");
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQUEST_CODE) {
+                      activateRadarScreen();
+                  }
+              }
 
-                  String myName = "Zeeshan_" + Build.MODEL;
+              private void activateRadarScreen() {
+                  runOnUiThread(() -> {
+                      permissionScreen.setVisibility(View.GONE);
+                      radarScreen.setVisibility(View.VISIBLE);
+                      startRadarEngine();
+                  });
+              }
 
-                  // Become Visible (Receive Mode)
+              private void startRadarEngine() {
                   AdvertisingOptions adOptions = new AdvertisingOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build();
-                  connectionsClient.startAdvertising(myName, SERVICE_ID, connectionLifecycleCallback, adOptions);
+                  connectionsClient.startAdvertising("Zeeshan_" + Build.MODEL, SERVICE_ID, connectionLifecycleCallback, adOptions);
 
-                  // Start Searching (Send Mode)
                   DiscoveryOptions discOptions = new DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build();
                   connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, discOptions);
               }
@@ -287,38 +259,28 @@ jobs:
               private final EndpointDiscoveryCallback endpointDiscoveryCallback = new EndpointDiscoveryCallback() {
                   @Override
                   public void onEndpointFound(String endpointId, DiscoveredEndpointInfo info) {
-                      Button deviceBtn = new Button(MainActivity.this);
-                      deviceBtn.setText("Tap to Connect: " + info.getEndpointName());
-                      deviceBtn.setBackgroundColor(Color.parseColor("#2979FF"));
-                      deviceBtn.setTextColor(Color.WHITE);
-                      deviceBtn.setOnClickListener(v -> {
-                          statusText.setText("Connecting...");
-                          connectionsClient.requestConnection("Zeeshan_" + Build.MODEL, endpointId, connectionLifecycleCallback);
-                      });
-                      radarDeviceList.addView(deviceBtn);
+                      statusText.setText("Found: " + info.getEndpointName() + "! Connecting...");
+                      connectionsClient.requestConnection("Zeeshan_" + Build.MODEL, endpointId, connectionLifecycleCallback);
                   }
                   @Override
-                  public void onEndpointLost(String endpointId) {
-                      radarDeviceList.removeAllViews();
-                  }
+                  public void onEndpointLost(String endpointId) {}
               };
 
-              // ================= AUTO ACCEPT CONNECTION =================
               private final ConnectionLifecycleCallback connectionLifecycleCallback = new ConnectionLifecycleCallback() {
                   @Override
                   public void onConnectionInitiated(String endpointId, ConnectionInfo info) {
-                      // AUTO ACCEPT LOGIC
-                      connectionsClient.acceptConnection(endpointId, payloadCallback);
+                      connectionsClient.acceptConnection(endpointId, new PayloadCallback() {
+                          @Override
+                          public void onPayloadReceived(String endpointId, Payload payload) {}
+                          @Override
+                          public void onPayloadTransferUpdate(String endpointId, PayloadTransferUpdate update) {}
+                      });
                   }
 
                   @Override
                   public void onConnectionResult(String endpointId, ConnectionResolution result) {
                       if (result.getStatus().isSuccess()) {
-                          connectedEndpointId = endpointId;
-                          statusText.setText("✅ CONNECTED TO FRIEND");
-                          radarPanel.setVisibility(View.GONE);
-                          dashboardPanel.setVisibility(View.VISIBLE);
-                          
+                          statusText.setText("✅ SUCCESS! Connected to Friend.");
                           connectionsClient.stopDiscovery();
                           connectionsClient.stopAdvertising();
                       }
@@ -326,62 +288,9 @@ jobs:
 
                   @Override
                   public void onDisconnected(String endpointId) {
-                      connectedEndpointId = null;
-                      dashboardPanel.setVisibility(View.GONE);
-                      monitorPanel.setVisibility(View.GONE);
-                      radarPanel.setVisibility(View.VISIBLE);
-                      statusText.setText("Disconnected. Back to Radar.");
+                      statusText.setText("Disconnected. Scanning again...");
                   }
               };
-
-              // ================= LIVE TRANSFER MONITOR =================
-              private final PayloadCallback payloadCallback = new PayloadCallback() {
-                  @Override
-                  public void onPayloadReceived(String endpointId, Payload payload) {
-                      dashboardPanel.setVisibility(View.GONE);
-                      monitorPanel.setVisibility(View.VISIBLE);
-                      transferStartTime = System.currentTimeMillis();
-                  }
-
-                  @Override
-                  public void onPayloadTransferUpdate(String endpointId, PayloadTransferUpdate update) {
-                      if (update.getStatus() == PayloadTransferUpdate.Status.IN_PROGRESS) {
-                          dashboardPanel.setVisibility(View.GONE);
-                          monitorPanel.setVisibility(View.VISIBLE);
-                          
-                          long bytesTransferred = update.getBytesTransferred();
-                          long totalBytes = update.getTotalBytes();
-                          int progress = (int) ((bytesTransferred * 100) / totalBytes);
-                          
-                          long timeElapsed = System.currentTimeMillis() - transferStartTime;
-                          long speed = timeElapsed > 0 ? (bytesTransferred / timeElapsed) * 1000 : 0;
-                          long speedMB = speed / (1024 * 1024);
-                          
-                          long bytesRemaining = totalBytes - bytesTransferred;
-                          long timeRemainingSec = speed > 0 ? bytesRemaining / speed : 0;
-                          
-                          monitorSpeedText.setText("Speed: " + speedMB + " MB/s");
-                          monitorProgressText.setText("Progress: " + progress + "%\nTime Left: " + timeRemainingSec + " sec");
-
-                      } else if (update.getStatus() == PayloadTransferUpdate.Status.SUCCESS) {
-                          monitorProgressText.setText("✅ Transfer Complete!");
-                      }
-                  }
-              };
-
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  if (requestCode == REQUEST_PICK_FILE && resultCode == RESULT_OK && data != null && connectedEndpointId != null) {
-                      try {
-                          Payload filePayload = Payload.fromStream(getContentResolver().openInputStream(data.getData()));
-                          connectionsClient.sendPayload(connectedEndpointId, filePayload);
-                          transferStartTime = System.currentTimeMillis();
-                          dashboardPanel.setVisibility(View.GONE);
-                          monitorPanel.setVisibility(View.VISIBLE);
-                      } catch (Exception e) {}
-                  }
-                  super.onActivityResult(requestCode, resultCode, data);
-              }
           }
           EOF
 
@@ -394,6 +303,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Zeeshan-Share-Ultimate
+          name: Zeeshan-Share-TopGear
           path: app/build/outputs/apk/debug/*.apk
 
