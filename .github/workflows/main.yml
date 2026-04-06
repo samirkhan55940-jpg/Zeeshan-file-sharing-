@@ -1,251 +1,479 @@
-package com.zeeshan.filesharing;
+name: Zeeshan-Pro-App-Builder
 
-import androidx.appcompat.app.AppCompatActivity;
-import android.animation.Animator;
-import android.animation.AnimatorSet;
-import android.animation.ObjectAnimator;
-import android.animation.TimeInterpolator;
-import android.os.Bundle;
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.TextView;
-import android.widget.Button;
-import android.view.Gravity;
-import android.view.View;
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
-import android.content.Intent;
-import android.Manifest;
-import android.os.Build;
-import android.net.Uri;
-import android.provider.Settings;
-import android.os.Environment;
-import android.widget.Toast;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.animation.AccelerateDecelerateInterpolator;
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.ArrayList;
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-public class MainActivity extends AppCompatActivity {
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-    private LinearLayout permissionScreen;
-    private RelativeLayout radarScreen;
-    private LinearLayout monitorPanel;
-    private TextView statusText;
-    private TextView monitorSpeedText;
-    private TextView monitorProgressText;
+      - name: Create Complete Android Project
+        run: |
+          mkdir -p app/src/main/java/com/zeeshan/filesharing
+          mkdir -p app/src/main/res/values
 
-    private static final int PERMISSION_REQUEST_CODE = 100;
-    private static final int REQUEST_PICK_FILE = 2;
+          echo "android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
 
-    private ServerSocket serverSocket;
-    private Socket activeSocket;
-    private Handler uiHandler = new Handler(Looper.getMainLooper());
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          include ':app'" > settings.gradle
 
-    private RelativeLayout animationContainer;
-    private ArrayList<View> rippleViews = new ArrayList<>();
-    private AnimatorSet animatorSet;
+          echo "plugins { id 'com.android.application' version '8.1.0' apply false }" > build.gradle
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+          echo "plugins { id 'com.android.application' }
+          android {
+              namespace 'com.zeeshan.filesharing'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.zeeshan.filesharing'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 12
+                  versionName '12.0-ProHotspotRadar'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }" > app/build.gradle
 
-        RelativeLayout rootLayout = new RelativeLayout(this);
-        rootLayout.setBackgroundColor(Color.parseColor("#121212"));
-        setContentView(rootLayout);
+          echo "<resources>
+              <string name=\"app_name\">Zeeshan Share Pro</string>
+          </resources>" > app/src/main/res/values/strings.xml
 
-        // --- SCREEN 1: LAL BUTTON SCREEN ---
-        permissionScreen = new LinearLayout(this);
-        permissionScreen.setOrientation(LinearLayout.VERTICAL);
-        permissionScreen.setGravity(Gravity.CENTER);
-        RelativeLayout.LayoutParams screenParams = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
-        permissionScreen.setLayoutParams(screenParams);
+          # 🚨 SAARI PERMISSIONS (WIFI, HOTSPOT, BLUETOOTH) 🚨
+          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"
+              xmlns:tools=\"http://schemas.android.com/tools\">
+              <uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\" />
+              <uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\" />
+              <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" />
+              <uses-permission android:name=\"android.permission.INTERNET\" />
+              <uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />
+              <uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />
+              <uses-permission android:name=\"android.permission.NEARBY_WIFI_DEVICES\" />
+              <uses-permission android:name=\"android.permission.BLUETOOTH\" />
+              <uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\" />
+              <uses-permission android:name=\"android.permission.BLUETOOTH_ADVERTISE\" />
+              <uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\" />
+              <uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" />
+              <uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" />
+              <uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />
+              <uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\" tools:ignore=\"ScopedStorage\" />
+              <uses-permission android:name=\"android.permission.WRITE_SETTINGS\" tools:ignore=\"ProtectedPermissions\" />
 
-        TextView header = new TextView(this);
-        header.setText("ZEESHAN SHARE\nPRO");
-        header.setTextColor(Color.WHITE);
-        header.setTextSize(36);
-        header.setPadding(0, 0, 0, 80);
-        header.setGravity(Gravity.CENTER);
-        header.setTypeface(null, android.graphics.Typeface.BOLD);
-        permissionScreen.addView(header);
+              <application android:label=\"@string/app_name\" android:theme=\"@style/Theme.AppCompat.Light.NoActionBar\" android:requestLegacyExternalStorage=\"true\">
+                  <activity android:name=\".MainActivity\" android:exported=\"true\">
+                      <intent-filter>
+                          <action android:name=\"android.intent.action.MAIN\" />
+                          <category android:name=\"android.intent.category.LAUNCHER\" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>" > app/src/main/AndroidManifest.xml
 
-        Button redButton = new Button(this);
-        redButton.setText("START");
-        redButton.setTextColor(Color.WHITE);
-        redButton.setTextSize(28);
-        redButton.setTypeface(null, android.graphics.Typeface.BOLD);
+          # 🚨 JAVA CODE SURU 🚨
+          cat << 'EOF' > app/src/main/java/com/zeeshan/filesharing/MainActivity.java
+          package com.zeeshan.filesharing;
 
-        GradientDrawable redShape = new GradientDrawable();
-        redShape.setShape(GradientDrawable.OVAL);
-        redShape.setColor(Color.parseColor("#D50000")); 
-        redButton.setBackground(redShape);
+          import androidx.appcompat.app.AppCompatActivity;
+          import android.animation.Animator;
+          import android.animation.AnimatorSet;
+          import android.animation.ObjectAnimator;
+          import android.os.Bundle;
+          import android.widget.LinearLayout;
+          import android.widget.RelativeLayout;
+          import android.widget.TextView;
+          import android.widget.Button;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
+          import android.content.Intent;
+          import android.Manifest;
+          import android.os.Build;
+          import android.net.Uri;
+          import android.provider.Settings;
+          import android.os.Environment;
+          import android.widget.Toast;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.animation.AccelerateDecelerateInterpolator;
 
-        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(600, 600);
-        redButton.setLayoutParams(btnParams);
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.util.ArrayList;
 
-        // LAL BUTTON: Permission + Hotspot trigger
-        redButton.setOnClickListener(v -> requestVIPAndHotspot());
-        permissionScreen.addView(redButton);
-        rootLayout.addView(permissionScreen);
+          public class MainActivity extends AppCompatActivity {
 
-        // --- SCREEN 2: ANIMATED RADAR SCREEN ---
-        radarScreen = new RelativeLayout(this);
-        radarScreen.setLayoutParams(screenParams);
-        radarScreen.setVisibility(View.GONE);
+              private LinearLayout permissionScreen;
+              private RelativeLayout radarScreen;
+              private LinearLayout dashboardPanel;
+              private LinearLayout monitorPanel;
+              private TextView statusText;
+              private TextView monitorSpeedText;
+              private TextView monitorProgressText;
 
-        animationContainer = new RelativeLayout(this);
-        RelativeLayout.LayoutParams animParams = new RelativeLayout.LayoutParams(800, 800);
-        animParams.addRule(RelativeLayout.CENTER_IN_PARENT);
-        animationContainer.setLayoutParams(animParams);
+              private static final int PERMISSION_REQUEST_CODE = 100;
+              private static final int REQUEST_PICK_FILE = 2;
 
-        for (int i = 0; i < 3; i++) {
-            View ripple = createRippleView();
-            animationContainer.addView(ripple);
-            rippleViews.add(ripple);
-        }
-        radarScreen.addView(animationContainer);
+              private ServerSocket serverSocket;
+              private Socket activeSocket;
+              private Handler uiHandler = new Handler(Looper.getMainLooper());
 
-        statusText = new TextView(this);
-        statusText.setText("Hotspot Active. Scanning...");
-        statusText.setTextColor(Color.parseColor("#00E676"));
-        statusText.setTextSize(20);
-        RelativeLayout.LayoutParams stParams = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
-        stParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        stParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
-        stParams.setMargins(0, 0, 0, 200);
-        statusText.setLayoutParams(stParams);
-        radarScreen.addView(statusText);
+              private RelativeLayout animationContainer;
+              private ArrayList<View> rippleViews = new ArrayList<>();
+              private AnimatorSet animatorSet;
 
-        rootLayout.addView(radarScreen);
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  RelativeLayout rootLayout = new RelativeLayout(this);
+                  rootLayout.setBackgroundColor(Color.parseColor("#121212"));
+                  setContentView(rootLayout);
 
-        // --- MONITOR PANEL ---
-        monitorPanel = new LinearLayout(this);
-        monitorPanel.setOrientation(LinearLayout.VERTICAL);
-        monitorPanel.setGravity(Gravity.CENTER);
-        monitorPanel.setLayoutParams(screenParams);
-        monitorPanel.setVisibility(View.GONE);
-        monitorSpeedText = new TextView(this);
-        monitorSpeedText.setTextColor(Color.WHITE);
-        monitorPanel.addView(monitorSpeedText);
-        monitorProgressText = new TextView(this);
-        monitorProgressText.setTextColor(Color.WHITE);
-        monitorPanel.addView(monitorProgressText);
-        rootLayout.addView(monitorPanel);
-    }
+                  // --- SCREEN 1: LAL BUTTON SCREEN ---
+                  permissionScreen = new LinearLayout(this);
+                  permissionScreen.setOrientation(LinearLayout.VERTICAL);
+                  permissionScreen.setGravity(Gravity.CENTER);
+                  RelativeLayout.LayoutParams screenParams = new RelativeLayout.LayoutParams(
+                          RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+                  permissionScreen.setLayoutParams(screenParams);
 
-    private View createRippleView() {
-        View view = new View(this);
-        view.setLayoutParams(new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
-        GradientDrawable shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.OVAL);
-        shape.setStroke(6, Color.parseColor("#00E676"));
-        view.setBackground(shape);
-        view.setAlpha(0);
-        return view;
-    }
+                  TextView header = new TextView(this);
+                  header.setText("ZEESHAN SHARE\nPRO");
+                  header.setTextColor(Color.WHITE);
+                  header.setTextSize(36);
+                  header.setPadding(0, 0, 0, 80);
+                  header.setGravity(Gravity.CENTER);
+                  header.setTypeface(null, android.graphics.Typeface.BOLD);
+                  permissionScreen.addView(header);
 
-    private void requestVIPAndHotspot() {
-        // 1. Check for Hotspot Modify Settings (VIP Access)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.System.canWrite(this)) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-                Toast.makeText(this, "Allow System Settings for Auto-Hotspot", Toast.LENGTH_LONG).show();
-                return;
-            }
-        }
+                  Button redButton = new Button(this);
+                  redButton.setText("START");
+                  redButton.setTextColor(Color.WHITE);
+                  redButton.setTextSize(28);
+                  redButton.setTypeface(null, android.graphics.Typeface.BOLD);
 
-        // 2. Standard Permissions
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            requestPermissions(new String[]{
-                Manifest.permission.NEARBY_WIFI_DEVICES, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-            }, PERMISSION_REQUEST_CODE);
-        } else {
-            requestPermissions(new String[]{
-                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-            }, PERMISSION_REQUEST_CODE);
-        }
-    }
+                  GradientDrawable redShape = new GradientDrawable();
+                  redShape.setShape(GradientDrawable.OVAL);
+                  redShape.setColor(Color.parseColor("#D50000")); 
+                  redButton.setBackground(redShape);
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            // Screen Switch
-            permissionScreen.setVisibility(View.GONE);
-            radarScreen.setVisibility(View.VISIBLE);
-            
-            // 🚨 AUTO HOTSPOT TRIGGER 🚨
-            triggerHotspot();
-            
-            // Start Animation & Engine
-            startRadarAnimation();
-            startCustomEngineReceiver();
-        }
-    }
+                  LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(600, 600);
+                  redButton.setLayoutParams(btnParams);
 
-    private void triggerHotspot() {
-        try {
-            // Android 8.0+ restricts direct toggle, but we can open the exact page
-            // Or use startLocalOnlyHotspot for Xender-like behavior
-            Intent intent = new Intent();
-            intent.setClassName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity");
-            startActivity(intent);
-            Toast.makeText(this, "PLEASE TURN ON HOTSPOT", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            // Fallback for some models
-            Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
-            startActivity(intent);
-        }
-    }
+                  // 🚨 LAL BUTTON DABANE PAR VIP SETTINGS AUR HOTSPOT MANGNA 🚨
+                  redButton.setOnClickListener(v -> requestVIPAndHotspot());
+                  permissionScreen.addView(redButton);
+                  rootLayout.addView(permissionScreen);
 
-    private void startRadarAnimation() {
-        if (animatorSet == null) {
-            ArrayList<Animator> animators = new ArrayList<>();
-            for (int i = 0; i < rippleViews.size(); i++) {
-                View ripple = rippleViews.get(i);
-                ObjectAnimator scaleX = ObjectAnimator.ofFloat(ripple, "scaleX", 1.0f, 4.0f);
-                ObjectAnimator scaleY = ObjectAnimator.ofFloat(ripple, "scaleY", 1.0f, 4.0f);
-                ObjectAnimator alpha = ObjectAnimator.ofFloat(ripple, "alpha", 1.0f, 0.0f);
+                  // --- SCREEN 2: RADAR ANIMATION SCREEN ---
+                  radarScreen = new RelativeLayout(this);
+                  radarScreen.setLayoutParams(screenParams);
+                  radarScreen.setVisibility(View.GONE);
 
-                scaleX.setDuration(2500); scaleY.setDuration(2500); alpha.setDuration(2500);
-                scaleX.setStartDelay(i * 800); scaleY.setStartDelay(i * 800); alpha.setStartDelay(i * 800);
-                scaleX.setRepeatCount(ObjectAnimator.INFINITE); scaleY.setRepeatCount(ObjectAnimator.INFINITE); alpha.setRepeatCount(ObjectAnimator.INFINITE);
+                  animationContainer = new RelativeLayout(this);
+                  RelativeLayout.LayoutParams animParams = new RelativeLayout.LayoutParams(800, 800);
+                  animParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+                  animationContainer.setLayoutParams(animParams);
 
-                animators.add(scaleX); animators.add(scaleY); animators.add(alpha);
-            }
-            animatorSet = new AnimatorSet();
-            animatorSet.setInterpolator(new AccelerateDecelerateInterpolator());
-            animatorSet.playTogether(animators);
-        }
-        animatorSet.start();
-    }
+                  for (int i = 0; i < 3; i++) {
+                      View ripple = createRippleView();
+                      animationContainer.addView(ripple);
+                      rippleViews.add(ripple);
+                  }
+                  
+                  // Beech ka Solid Point
+                  View centralPoint = new View(this);
+                  RelativeLayout.LayoutParams pointParams = new RelativeLayout.LayoutParams(40, 40);
+                  pointParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+                  centralPoint.setLayoutParams(pointParams);
+                  GradientDrawable pointShape = new GradientDrawable();
+                  pointShape.setShape(GradientDrawable.OVAL);
+                  pointShape.setColor(Color.parseColor("#00E676"));
+                  centralPoint.setBackground(pointShape);
+                  animationContainer.addView(centralPoint);
 
-    private void startCustomEngineReceiver() {
-        new Thread(() -> {
-            try {
-                if(serverSocket == null) serverSocket = new ServerSocket(8988);
-                while (true) {
-                    activeSocket = serverSocket.accept();
-                    uiHandler.post(() -> {
-                        radarScreen.setVisibility(View.GONE);
-                        monitorPanel.setVisibility(View.VISIBLE);
-                    });
-                    // File receiving logic here...
-                }
-            } catch (Exception e) {}
-        }).start();
-    }
-}
+                  radarScreen.addView(animationContainer);
+
+                  statusText = new TextView(this);
+                  statusText.setText("System Active. Searching...");
+                  statusText.setTextColor(Color.parseColor("#00E676"));
+                  statusText.setTextSize(20);
+                  RelativeLayout.LayoutParams stParams = new RelativeLayout.LayoutParams(
+                          RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                  stParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                  stParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                  stParams.setMargins(0, 0, 0, 200);
+                  statusText.setLayoutParams(stParams);
+                  radarScreen.addView(statusText);
+
+                  Button selectFileBtn = new Button(this);
+                  selectFileBtn.setText("📁 SELECT FILE");
+                  selectFileBtn.setBackgroundColor(Color.parseColor("#2979FF"));
+                  selectFileBtn.setTextColor(Color.WHITE);
+                  RelativeLayout.LayoutParams sfParams = new RelativeLayout.LayoutParams(
+                          RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                  sfParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+                  sfParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                  sfParams.setMargins(0, 100, 0, 0);
+                  selectFileBtn.setLayoutParams(sfParams);
+                  selectFileBtn.setOnClickListener(v -> {
+                      Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                      intent.setType("*/*");
+                      startActivityForResult(intent, REQUEST_PICK_FILE);
+                  });
+                  radarScreen.addView(selectFileBtn);
+
+                  rootLayout.addView(radarScreen);
+
+                  // --- SCREEN 3: MONITOR PANEL ---
+                  monitorPanel = new LinearLayout(this);
+                  monitorPanel.setOrientation(LinearLayout.VERTICAL);
+                  monitorPanel.setGravity(Gravity.CENTER);
+                  monitorPanel.setLayoutParams(screenParams);
+                  monitorPanel.setVisibility(View.GONE);
+                  monitorSpeedText = new TextView(this);
+                  monitorSpeedText.setTextColor(Color.parseColor("#FFD600"));
+                  monitorSpeedText.setTextSize(22);
+                  monitorPanel.addView(monitorSpeedText);
+                  monitorProgressText = new TextView(this);
+                  monitorProgressText.setTextColor(Color.WHITE);
+                  monitorProgressText.setTextSize(18);
+                  monitorProgressText.setPadding(0, 20, 0, 0);
+                  monitorPanel.addView(monitorProgressText);
+                  rootLayout.addView(monitorPanel);
+              }
+
+              private View createRippleView() {
+                  View view = new View(this);
+                  view.setLayoutParams(new RelativeLayout.LayoutParams(
+                          RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+                  GradientDrawable shape = new GradientDrawable();
+                  shape.setShape(GradientDrawable.OVAL);
+                  shape.setStroke(6, Color.parseColor("#00E676"));
+                  view.setBackground(shape);
+                  view.setAlpha(0);
+                  return view;
+              }
+
+              // 🚨 LAL BUTTON DABANE KE BAAD KA LOGIC 🚨
+              private void requestVIPAndHotspot() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      if (!Settings.System.canWrite(this)) {
+                          Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                          intent.setData(Uri.parse("package:" + getPackageName()));
+                          startActivity(intent);
+                          Toast.makeText(this, "Allow Modify System Settings", Toast.LENGTH_LONG).show();
+                          return;
+                      }
+                  }
+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                      requestPermissions(new String[]{
+                          Manifest.permission.NEARBY_WIFI_DEVICES, Manifest.permission.ACCESS_FINE_LOCATION, 
+                          Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN,
+                          Manifest.permission.READ_EXTERNAL_STORAGE
+                      }, PERMISSION_REQUEST_CODE);
+                  } else {
+                      requestPermissions(new String[]{
+                          Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.BLUETOOTH, Manifest.permission.READ_EXTERNAL_STORAGE
+                      }, PERMISSION_REQUEST_CODE);
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQUEST_CODE) {
+                      permissionScreen.setVisibility(View.GONE);
+                      radarScreen.setVisibility(View.VISIBLE);
+                      
+                      // 1. Hotspot On karo
+                      triggerHotspot();
+                      // 2. Radar Animation chalu karo
+                      startRadarAnimation();
+                      // 3. File receiving server on karo
+                      startCustomEngineReceiver();
+                  }
+              }
+
+              // 🚨 HOTSPOT TRIGGER KARTA HAI 🚨
+              private void triggerHotspot() {
+                  try {
+                      Intent intent = new Intent();
+                      intent.setClassName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity");
+                      startActivity(intent);
+                      Toast.makeText(this, "Turn ON Hotspot here, then go back", Toast.LENGTH_LONG).show();
+                  } catch (Exception e) {
+                      Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+                      startActivity(intent);
+                  }
+              }
+
+              private void startRadarAnimation() {
+                  if (animatorSet == null) {
+                      ArrayList<Animator> animators = new ArrayList<>();
+                      for (int i = 0; i < rippleViews.size(); i++) {
+                          View ripple = rippleViews.get(i);
+                          ObjectAnimator scaleX = ObjectAnimator.ofFloat(ripple, "scaleX", 1.0f, 4.0f);
+                          ObjectAnimator scaleY = ObjectAnimator.ofFloat(ripple, "scaleY", 1.0f, 4.0f);
+                          ObjectAnimator alpha = ObjectAnimator.ofFloat(ripple, "alpha", 1.0f, 0.0f);
+
+                          scaleX.setDuration(2500); scaleY.setDuration(2500); alpha.setDuration(2500);
+                          scaleX.setStartDelay(i * 800); scaleY.setStartDelay(i * 800); alpha.setStartDelay(i * 800);
+                          scaleX.setRepeatCount(ObjectAnimator.INFINITE); scaleY.setRepeatCount(ObjectAnimator.INFINITE); alpha.setRepeatCount(ObjectAnimator.INFINITE);
+
+                          animators.add(scaleX); animators.add(scaleY); animators.add(alpha);
+                      }
+                      animatorSet = new AnimatorSet();
+                      animatorSet.setInterpolator(new AccelerateDecelerateInterpolator());
+                      animatorSet.playTogether(animators);
+                  }
+                  animatorSet.start();
+              }
+
+              private void stopRadarAnimation() {
+                  if (animatorSet != null && animatorSet.isRunning()) {
+                      animatorSet.end();
+                  }
+              }
+
+              // 🚨 RECEIVE FILE 🚨
+              private void startCustomEngineReceiver() {
+                  new Thread(() -> {
+                      try {
+                          if(serverSocket == null) serverSocket = new ServerSocket(8988);
+                          while (true) {
+                              activeSocket = serverSocket.accept();
+                              uiHandler.post(() -> {
+                                  stopRadarAnimation();
+                                  radarScreen.setVisibility(View.GONE);
+                                  monitorPanel.setVisibility(View.VISIBLE);
+                                  monitorSpeedText.setText("Receiving File...");
+                              });
+                              receiveFile(activeSocket);
+                          }
+                      } catch (Exception e) {}
+                  }).start();
+              }
+
+              private void receiveFile(Socket socket) {
+                  try {
+                      InputStream in = socket.getInputStream();
+                      File safeFolder = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                      File outFile = new File(safeFolder, "Zeeshan_File_" + System.currentTimeMillis() + ".dat");
+                      FileOutputStream out = new FileOutputStream(outFile);
+
+                      byte[] buffer = new byte[1024 * 512];
+                      int bytesRead;
+                      long totalBytes = 0;
+
+                      while ((bytesRead = in.read(buffer)) != -1) {
+                          out.write(buffer, 0, bytesRead);
+                          totalBytes += bytesRead;
+                          long displayMB = totalBytes / (1024 * 1024);
+                          uiHandler.post(() -> monitorProgressText.setText("Saved: " + displayMB + " MB"));
+                      }
+                      out.flush(); out.close(); in.close(); socket.close();
+                      uiHandler.post(() -> monitorSpeedText.setText("✅ SUCCESS: Saved in Downloads!"));
+                  } catch (Exception e) {
+                      uiHandler.post(() -> monitorSpeedText.setText("Transfer Failed!"));
+                  }
+              }
+
+              // 🚨 SEND FILE (AI CHUNKING) 🚨
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  if (requestCode == REQUEST_PICK_FILE && resultCode == RESULT_OK && data != null) {
+                      stopRadarAnimation();
+                      radarScreen.setVisibility(View.GONE);
+                      monitorPanel.setVisibility(View.VISIBLE);
+                      startSendingProcess(data.getData());
+                  }
+                  super.onActivityResult(requestCode, resultCode, data);
+              }
+
+              private void startSendingProcess(final Uri fileUri) {
+                  new Thread(() -> {
+                      try {
+                          Socket socket = new Socket("192.168.43.1", 8988);
+                          InputStream in = getContentResolver().openInputStream(fileUri);
+                          OutputStream out = socket.getOutputStream();
+
+                          long totalSent = 0;
+                          int dynamicChunkSize = 1024 * 128;
+                          byte[] buffer;
+                          long startTime;
+                          int bytesRead;
+
+                          while (true) {
+                              buffer = new byte[dynamicChunkSize];
+                              startTime = System.currentTimeMillis();
+                              
+                              bytesRead = in.read(buffer);
+                              if (bytesRead == -1) break;
+                              
+                              out.write(buffer, 0, bytesRead);
+                              totalSent += bytesRead;
+                              
+                              long timeTaken = System.currentTimeMillis() - startTime;
+                              if (timeTaken < 50 && dynamicChunkSize < 1024 * 1024 * 5) {
+                                  dynamicChunkSize = dynamicChunkSize * 2;
+                              } else if (timeTaken > 200 && dynamicChunkSize > 1024 * 64) {
+                                  dynamicChunkSize = dynamicChunkSize / 2;
+                              }
+
+                              long displayMB = totalSent / (1024 * 1024);
+                              final int currentChunkKB = dynamicChunkSize / 1024;
+                              
+                              uiHandler.post(() -> {
+                                  monitorSpeedText.setText("⚡ AI Speed: " + currentChunkKB + " KB/chunk");
+                                  monitorProgressText.setText("Sent: " + displayMB + " MB");
+                              });
+                          }
+                          out.flush(); out.close(); in.close(); socket.close();
+                          uiHandler.post(() -> monitorSpeedText.setText("✅ FILE SENT SUCCESSFULLY!"));
+                      } catch (Exception e) {
+                          uiHandler.post(() -> {
+                              monitorSpeedText.setText("Connection Failed");
+                              monitorProgressText.setText("Connect to Friend's Hotspot first.");
+                          });
+                      }
+                  }).start();
+              }
+          }
+          EOF
+
+      - name: Build Pro App
+        uses: gradle/gradle-build-action@v3
+        with:
+          arguments: assembleDebug
+          gradle-version: 8.1
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zeeshan-Share-Pro-Final
+          path: app/build/outputs/apk/debug/*.apk
+
