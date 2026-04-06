@@ -1,373 +1,251 @@
-name: Zeeshan-Custom-Engine-Builder
+package com.zeeshan.filesharing;
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+import androidx.appcompat.app.AppCompatActivity;
+import android.animation.Animator;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.TimeInterpolator;
+import android.os.Bundle;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
+import android.widget.Button;
+import android.view.Gravity;
+import android.view.View;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.content.Intent;
+import android.Manifest;
+import android.os.Build;
+import android.net.Uri;
+import android.provider.Settings;
+import android.os.Environment;
+import android.widget.Toast;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.animation.AccelerateDecelerateInterpolator;
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+public class MainActivity extends AppCompatActivity {
 
-      - name: Create Complete Android Project
-        run: |
-          mkdir -p app/src/main/java/com/zeeshan/filesharing
-          mkdir -p app/src/main/res/values
+    private LinearLayout permissionScreen;
+    private RelativeLayout radarScreen;
+    private LinearLayout monitorPanel;
+    private TextView statusText;
+    private TextView monitorSpeedText;
+    private TextView monitorProgressText;
 
-          echo "android.useAndroidX=true
-          android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
+    private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int REQUEST_PICK_FILE = 2;
 
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          include ':app'" > settings.gradle
+    private ServerSocket serverSocket;
+    private Socket activeSocket;
+    private Handler uiHandler = new Handler(Looper.getMainLooper());
 
-          echo "plugins { id 'com.android.application' version '8.1.0' apply false }" > build.gradle
+    private RelativeLayout animationContainer;
+    private ArrayList<View> rippleViews = new ArrayList<>();
+    private AnimatorSet animatorSet;
 
-          # 🚨 GOOGLE NEARBY API HATA DIYA GAYA HAI
-          echo "plugins { id 'com.android.application' }
-          android {
-              namespace 'com.zeeshan.filesharing'
-              compileSdk 34
-              defaultConfig {
-                  applicationId 'com.zeeshan.filesharing'
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 11
-                  versionName '11.0-CustomAIEngine'
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              # Koi Google API nahi! 100% Independent.
-          }" > app/build.gradle
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-          echo "<resources>
-              <string name=\"app_name\">Zeeshan Share</string>
-          </resources>" > app/src/main/res/values/strings.xml
+        RelativeLayout rootLayout = new RelativeLayout(this);
+        rootLayout.setBackgroundColor(Color.parseColor("#121212"));
+        setContentView(rootLayout);
 
-          # 🚨 WI-FI DIRECT PERMISSIONS
-          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-          <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"
-              xmlns:tools=\"http://schemas.android.com/tools\">
-              <uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\" />
-              <uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\" />
-              <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" />
-              <uses-permission android:name=\"android.permission.INTERNET\" />
-              <uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />
-              <uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />
-              <uses-permission android:name=\"android.permission.NEARBY_WIFI_DEVICES\" />
-              <uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" />
-              <uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />
-              <uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\" tools:ignore=\"ScopedStorage\" />
-              <uses-permission android:name=\"android.permission.WAKE_LOCK\" />
+        // --- SCREEN 1: LAL BUTTON SCREEN ---
+        permissionScreen = new LinearLayout(this);
+        permissionScreen.setOrientation(LinearLayout.VERTICAL);
+        permissionScreen.setGravity(Gravity.CENTER);
+        RelativeLayout.LayoutParams screenParams = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+        permissionScreen.setLayoutParams(screenParams);
 
-              <application android:label=\"@string/app_name\" android:theme=\"@style/Theme.AppCompat.Light.NoActionBar\" android:requestLegacyExternalStorage=\"true\">
-                  <activity android:name=\".MainActivity\" android:exported=\"true\">
-                      <intent-filter>
-                          <action android:name=\"android.intent.action.MAIN\" />
-                          <category android:name=\"android.intent.category.LAUNCHER\" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>" > app/src/main/AndroidManifest.xml
+        TextView header = new TextView(this);
+        header.setText("ZEESHAN SHARE\nPRO");
+        header.setTextColor(Color.WHITE);
+        header.setTextSize(36);
+        header.setPadding(0, 0, 0, 80);
+        header.setGravity(Gravity.CENTER);
+        header.setTypeface(null, android.graphics.Typeface.BOLD);
+        permissionScreen.addView(header);
 
-          # 🚨 CUSTOM LOCAL AI & WI-FI DIRECT ENGINE
-          cat << 'EOF' > app/src/main/java/com/zeeshan/filesharing/MainActivity.java
-          package com.zeeshan.filesharing;
-          
-          import androidx.appcompat.app.AppCompatActivity;
-          import android.os.Bundle;
-          import android.widget.LinearLayout;
-          import android.widget.TextView;
-          import android.widget.Button;
-          import android.view.Gravity;
-          import android.view.View;
-          import android.graphics.Color;
-          import android.graphics.drawable.GradientDrawable;
-          import android.content.Intent;
-          import android.Manifest;
-          import android.os.Build;
-          import android.net.Uri;
-          import android.os.Environment;
-          import android.widget.Toast;
-          import android.os.Handler;
-          import android.os.Looper;
-          
-          import java.io.InputStream;
-          import java.io.OutputStream;
-          import java.net.ServerSocket;
-          import java.net.Socket;
-          import java.io.File;
-          import java.io.FileOutputStream;
+        Button redButton = new Button(this);
+        redButton.setText("START");
+        redButton.setTextColor(Color.WHITE);
+        redButton.setTextSize(28);
+        redButton.setTypeface(null, android.graphics.Typeface.BOLD);
 
-          public class MainActivity extends AppCompatActivity {
-              
-              private LinearLayout permissionScreen;
-              private LinearLayout radarScreen;
-              private LinearLayout monitorPanel;
-              private TextView statusText;
-              private TextView monitorSpeedText;
-              private TextView monitorProgressText;
-              
-              private static final int PERMISSION_REQUEST_CODE = 100;
-              private static final int REQUEST_PICK_FILE = 2;
-              
-              // Custom Engine Variables
-              private ServerSocket serverSocket;
-              private Socket activeSocket;
-              private Handler uiHandler = new Handler(Looper.getMainLooper());
-              private boolean isServerMode = true;
+        GradientDrawable redShape = new GradientDrawable();
+        redShape.setShape(GradientDrawable.OVAL);
+        redShape.setColor(Color.parseColor("#D50000")); 
+        redButton.setBackground(redShape);
 
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(600, 600);
+        redButton.setLayoutParams(btnParams);
 
-                  LinearLayout rootLayout = new LinearLayout(this);
-                  rootLayout.setOrientation(LinearLayout.VERTICAL);
-                  rootLayout.setBackgroundColor(Color.parseColor("#121212"));
-                  rootLayout.setGravity(Gravity.CENTER);
+        // LAL BUTTON: Permission + Hotspot trigger
+        redButton.setOnClickListener(v -> requestVIPAndHotspot());
+        permissionScreen.addView(redButton);
+        rootLayout.addView(permissionScreen);
 
-                  // SCREEN 1: LAL BUTTON (App Khulte Hi)
-                  permissionScreen = new LinearLayout(this);
-                  permissionScreen.setOrientation(LinearLayout.VERTICAL);
-                  permissionScreen.setGravity(Gravity.CENTER);
-                  
-                  TextView header = new TextView(this);
-                  header.setText("ZEESHAN SHARE");
-                  header.setTextColor(Color.WHITE);
-                  header.setTextSize(36);
-                  header.setPadding(0, 0, 0, 80);
-                  header.setTypeface(null, android.graphics.Typeface.BOLD);
-                  permissionScreen.addView(header);
+        // --- SCREEN 2: ANIMATED RADAR SCREEN ---
+        radarScreen = new RelativeLayout(this);
+        radarScreen.setLayoutParams(screenParams);
+        radarScreen.setVisibility(View.GONE);
 
-                  Button redButton = new Button(this);
-                  redButton.setText("START ENGINE");
-                  redButton.setTextColor(Color.WHITE);
-                  redButton.setTextSize(24);
-                  redButton.setTypeface(null, android.graphics.Typeface.BOLD);
-                  
-                  GradientDrawable redShape = new GradientDrawable();
-                  redShape.setShape(GradientDrawable.OVAL);
-                  redShape.setColor(Color.parseColor("#D50000")); 
-                  redButton.setBackground(redShape);
-                  
-                  LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(600, 600);
-                  redButton.setLayoutParams(btnParams);
-                  
-                  redButton.setOnClickListener(v -> requestVIPPermissions());
-                  permissionScreen.addView(redButton);
-                  
-                  rootLayout.addView(permissionScreen);
+        animationContainer = new RelativeLayout(this);
+        RelativeLayout.LayoutParams animParams = new RelativeLayout.LayoutParams(800, 800);
+        animParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+        animationContainer.setLayoutParams(animParams);
 
-                  // SCREEN 2: RADAR & DASHBOARD
-                  radarScreen = new LinearLayout(this);
-                  radarScreen.setOrientation(LinearLayout.VERTICAL);
-                  radarScreen.setGravity(Gravity.CENTER);
-                  radarScreen.setVisibility(View.GONE); 
-                  
-                  statusText = new TextView(this);
-                  statusText.setText("Zeeshan Custom Engine Active");
-                  statusText.setTextColor(Color.parseColor("#00E676")); 
-                  statusText.setTextSize(22);
-                  statusText.setTypeface(null, android.graphics.Typeface.BOLD);
-                  statusText.setPadding(0, 0, 0, 40);
-                  radarScreen.addView(statusText);
+        for (int i = 0; i < 3; i++) {
+            View ripple = createRippleView();
+            animationContainer.addView(ripple);
+            rippleViews.add(ripple);
+        }
+        radarScreen.addView(animationContainer);
 
-                  Button selectFileBtn = new Button(this);
-                  selectFileBtn.setText("📁 SELECT FILE TO SEND");
-                  selectFileBtn.setBackgroundColor(Color.parseColor("#2979FF"));
-                  selectFileBtn.setTextColor(Color.WHITE);
-                  selectFileBtn.setOnClickListener(v -> {
-                      Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                      intent.setType("*/*");
-                      startActivityForResult(intent, REQUEST_PICK_FILE);
-                  });
-                  radarScreen.addView(selectFileBtn);
+        statusText = new TextView(this);
+        statusText.setText("Hotspot Active. Scanning...");
+        statusText.setTextColor(Color.parseColor("#00E676"));
+        statusText.setTextSize(20);
+        RelativeLayout.LayoutParams stParams = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+        stParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        stParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+        stParams.setMargins(0, 0, 0, 200);
+        statusText.setLayoutParams(stParams);
+        radarScreen.addView(statusText);
 
-                  rootLayout.addView(radarScreen);
+        rootLayout.addView(radarScreen);
 
-                  // SCREEN 3: TRANSFER MONITOR (AI CHUNKING)
-                  monitorPanel = new LinearLayout(this);
-                  monitorPanel.setOrientation(LinearLayout.VERTICAL);
-                  monitorPanel.setVisibility(View.GONE);
-                  monitorPanel.setGravity(Gravity.CENTER);
-                  
-                  TextView monitorTitle = new TextView(this);
-                  monitorTitle.setText("⚡ AI SMART TRANSFER ⚡");
-                  monitorTitle.setTextColor(Color.parseColor("#FFC107"));
-                  monitorTitle.setTextSize(24);
-                  monitorPanel.addView(monitorTitle);
-                  
-                  monitorSpeedText = new TextView(this);
-                  monitorSpeedText.setTextColor(Color.parseColor("#00E676"));
-                  monitorSpeedText.setTextSize(18);
-                  monitorPanel.addView(monitorSpeedText);
-                  
-                  monitorProgressText = new TextView(this);
-                  monitorProgressText.setTextColor(Color.WHITE);
-                  monitorProgressText.setTextSize(18);
-                  monitorPanel.addView(monitorProgressText);
-                  
-                  rootLayout.addView(monitorPanel);
+        // --- MONITOR PANEL ---
+        monitorPanel = new LinearLayout(this);
+        monitorPanel.setOrientation(LinearLayout.VERTICAL);
+        monitorPanel.setGravity(Gravity.CENTER);
+        monitorPanel.setLayoutParams(screenParams);
+        monitorPanel.setVisibility(View.GONE);
+        monitorSpeedText = new TextView(this);
+        monitorSpeedText.setTextColor(Color.WHITE);
+        monitorPanel.addView(monitorSpeedText);
+        monitorProgressText = new TextView(this);
+        monitorProgressText.setTextColor(Color.WHITE);
+        monitorPanel.addView(monitorProgressText);
+        rootLayout.addView(monitorPanel);
+    }
 
-                  setContentView(rootLayout);
-              }
+    private View createRippleView() {
+        View view = new View(this);
+        view.setLayoutParams(new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.OVAL);
+        shape.setStroke(6, Color.parseColor("#00E676"));
+        view.setBackground(shape);
+        view.setAlpha(0);
+        return view;
+    }
 
-              private void requestVIPPermissions() {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                      requestPermissions(new String[]{
-                          Manifest.permission.NEARBY_WIFI_DEVICES, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-                      }, PERMISSION_REQUEST_CODE);
-                  } else {
-                      requestPermissions(new String[]{
-                          Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
-                      }, PERMISSION_REQUEST_CODE);
-                  }
-              }
+    private void requestVIPAndHotspot() {
+        // 1. Check for Hotspot Modify Settings (VIP Access)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.System.canWrite(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+                Toast.makeText(this, "Allow System Settings for Auto-Hotspot", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
 
-              @Override
-              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                  if (requestCode == PERMISSION_REQUEST_CODE) {
-                      permissionScreen.setVisibility(View.GONE);
-                      radarScreen.setVisibility(View.VISIBLE);
-                      startCustomEngineReceiver();
-                  }
-              }
+        // 2. Standard Permissions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requestPermissions(new String[]{
+                Manifest.permission.NEARBY_WIFI_DEVICES, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
+            }, PERMISSION_REQUEST_CODE);
+        } else {
+            requestPermissions(new String[]{
+                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE
+            }, PERMISSION_REQUEST_CODE);
+        }
+    }
 
-              // ================= Zeeshan Custom Engine (Receiver) =================
-              private void startCustomEngineReceiver() {
-                  new Thread(() -> {
-                      try {
-                          serverSocket = new ServerSocket(8988);
-                          uiHandler.post(() -> statusText.setText("Radar On. Waiting for Files..."));
-                          
-                          while (true) {
-                              activeSocket = serverSocket.accept();
-                              uiHandler.post(() -> {
-                                  radarScreen.setVisibility(View.GONE);
-                                  monitorPanel.setVisibility(View.VISIBLE);
-                                  monitorSpeedText.setText("Incoming File...");
-                              });
-                              receiveFile(activeSocket);
-                          }
-                      } catch (Exception e) {}
-                  }).start();
-              }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // Screen Switch
+            permissionScreen.setVisibility(View.GONE);
+            radarScreen.setVisibility(View.VISIBLE);
+            
+            // 🚨 AUTO HOTSPOT TRIGGER 🚨
+            triggerHotspot();
+            
+            // Start Animation & Engine
+            startRadarAnimation();
+            startCustomEngineReceiver();
+        }
+    }
 
-              private void receiveFile(Socket socket) {
-                  try {
-                      InputStream in = socket.getInputStream();
-                      File safeFolder = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-                      File outFile = new File(safeFolder, "Zeeshan_Received_" + System.currentTimeMillis() + ".dat");
-                      FileOutputStream out = new FileOutputStream(outFile);
+    private void triggerHotspot() {
+        try {
+            // Android 8.0+ restricts direct toggle, but we can open the exact page
+            // Or use startLocalOnlyHotspot for Xender-like behavior
+            Intent intent = new Intent();
+            intent.setClassName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity");
+            startActivity(intent);
+            Toast.makeText(this, "PLEASE TURN ON HOTSPOT", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            // Fallback for some models
+            Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+            startActivity(intent);
+        }
+    }
 
-                      byte[] buffer = new byte[1024 * 512]; // Default 512KB chunks
-                      int bytesRead;
-                      long totalMB = 0;
+    private void startRadarAnimation() {
+        if (animatorSet == null) {
+            ArrayList<Animator> animators = new ArrayList<>();
+            for (int i = 0; i < rippleViews.size(); i++) {
+                View ripple = rippleViews.get(i);
+                ObjectAnimator scaleX = ObjectAnimator.ofFloat(ripple, "scaleX", 1.0f, 4.0f);
+                ObjectAnimator scaleY = ObjectAnimator.ofFloat(ripple, "scaleY", 1.0f, 4.0f);
+                ObjectAnimator alpha = ObjectAnimator.ofFloat(ripple, "alpha", 1.0f, 0.0f);
 
-                      while ((bytesRead = in.read(buffer)) != -1) {
-                          out.write(buffer, 0, bytesRead);
-                          totalMB += bytesRead;
-                          long displayMB = totalMB / (1024 * 1024);
-                          uiHandler.post(() -> monitorProgressText.setText("Received: " + displayMB + " MB\n(AI Optimizing...)"));
-                      }
-                      
-                      out.flush(); out.close(); socket.close();
-                      uiHandler.post(() -> monitorSpeedText.setText("✅ SUCCESS: Saved in Downloads!"));
-                  } catch (Exception e) {}
-              }
+                scaleX.setDuration(2500); scaleY.setDuration(2500); alpha.setDuration(2500);
+                scaleX.setStartDelay(i * 800); scaleY.setStartDelay(i * 800); alpha.setStartDelay(i * 800);
+                scaleX.setRepeatCount(ObjectAnimator.INFINITE); scaleY.setRepeatCount(ObjectAnimator.INFINITE); alpha.setRepeatCount(ObjectAnimator.INFINITE);
 
-              // ================= Zeeshan AI Chunking Engine (Sender) =================
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  if (requestCode == REQUEST_PICK_FILE && resultCode == RESULT_OK && data != null) {
-                      radarScreen.setVisibility(View.GONE);
-                      monitorPanel.setVisibility(View.VISIBLE);
-                      startSmartSending(data.getData());
-                  }
-                  super.onActivityResult(requestCode, resultCode, data);
-              }
+                animators.add(scaleX); animators.add(scaleY); animators.add(alpha);
+            }
+            animatorSet = new AnimatorSet();
+            animatorSet.setInterpolator(new AccelerateDecelerateInterpolator());
+            animatorSet.playTogether(animators);
+        }
+        animatorSet.start();
+    }
 
-              private void startSmartSending(final Uri fileUri) {
-                  new Thread(() -> {
-                      try {
-                          Socket socket = new Socket("192.168.43.1", 8988); // Target Hotspot IP
-                          InputStream in = getContentResolver().openInputStream(fileUri);
-                          OutputStream out = socket.getOutputStream();
-
-                          // 🚨 LOCAL AI CHUNKING LOGIC 🚨
-                          long totalSent = 0;
-                          int dynamicChunkSize = 1024 * 128; // Start small (128KB) to test water
-                          byte[] buffer;
-                          long startTime;
-                          int bytesRead;
-
-                          while (true) {
-                              buffer = new byte[dynamicChunkSize];
-                              startTime = System.currentTimeMillis();
-                              
-                              bytesRead = in.read(buffer);
-                              if (bytesRead == -1) break; // File ended
-                              
-                              out.write(buffer, 0, bytesRead);
-                              totalSent += bytesRead;
-                              
-                              long timeTaken = System.currentTimeMillis() - startTime;
-                              
-                              // AI LOGIC: Agar phone fast hai aur timeTaken < 50ms hai, toh tukda bada kar do
-                              if (timeTaken < 50 && dynamicChunkSize < 1024 * 1024 * 5) {
-                                  dynamicChunkSize = dynamicChunkSize * 2; // Double the chunk size
-                              } 
-                              // Agar phone hang ho raha hai ya timeTaken > 200ms hai, toh tukda chota kar do
-                              else if (timeTaken > 200 && dynamicChunkSize > 1024 * 64) {
-                                  dynamicChunkSize = dynamicChunkSize / 2; // Halve the chunk size
-                              }
-
-                              long displayMB = totalSent / (1024 * 1024);
-                              final int currentChunkKB = dynamicChunkSize / 1024;
-                              
-                              uiHandler.post(() -> {
-                                  monitorSpeedText.setText("⚡ AI Chunk Size: " + currentChunkKB + " KB");
-                                  monitorProgressText.setText("Sent: " + displayMB + " MB");
-                              });
-                          }
-
-                          out.flush(); out.close(); in.close(); socket.close();
-                          uiHandler.post(() -> monitorSpeedText.setText("✅ FILE SENT SUCCESSFULLY!"));
-                      } catch (Exception e) {
-                          uiHandler.post(() -> {
-                              monitorSpeedText.setText("Connection Error");
-                              monitorProgressText.setText("Receiver must turn ON Hotspot.");
-                          });
-                      }
-                  }).start();
-              }
-          }
-          EOF
-
-      - name: Build Custom Engine App
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: assembleDebug
-          gradle-version: 8.1
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zeeshan-Custom-Engine
-          path: app/build/outputs/apk/debug/*.apk
-
+    private void startCustomEngineReceiver() {
+        new Thread(() -> {
+            try {
+                if(serverSocket == null) serverSocket = new ServerSocket(8988);
+                while (true) {
+                    activeSocket = serverSocket.accept();
+                    uiHandler.post(() -> {
+                        radarScreen.setVisibility(View.GONE);
+                        monitorPanel.setVisibility(View.VISIBLE);
+                    });
+                    // File receiving logic here...
+                }
+            } catch (Exception e) {}
+        }).start();
+    }
+}
